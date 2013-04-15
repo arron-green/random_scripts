@@ -1,0 +1,101 @@
+#!/usr/bin/python
+import sys, getopt, os, time
+from datetime import date, datetime
+from subprocess import check_call
+
+dry_run=False
+def main(argv):
+    try:
+        opts, args = getopt.getopt(argv[1:], "h:p:c:r:", ["help", "path=", "compress=", "remove=", "dry-run"])
+    except getopt.GetoptError:
+        print "get opt error"
+        usage()
+
+    rootpath=None
+    days_older_to_compress=None
+    days_older_to_remove=None
+    global dry_run
+
+    for o, a in opts:
+        if o in ("-h", "--help"):
+            usage()
+        if o in ("-p", "--path"):
+            rootpath = str(a)
+        if o in ("-c", "--compress"):
+            days_older_to_compress = int(a)
+        if o in ("--dry-run"):
+            dry_run=True
+        if o in ("-r", "--remove"):
+            days_older_to_remove = int(a)
+
+    if rootpath is None or days_older_to_compress is None or days_older_to_remove is None:
+        usage()
+
+    #compression days cannot be greater than removal days
+    if days_older_to_compress >= days_older_to_remove:
+        usage()
+
+    if os.path.exists(rootpath):
+        if dry_run:
+            print "dry run, no changes will be made"
+
+        d = datetime.now()
+        #traverse dir, ignoring symlinks
+        for path, dirs, files in os.walk(rootpath):
+            for f in files:
+                full_path = os.path.join(path, f)
+
+                #dont bother compressing or deleting symlinks
+                if os.path.islink(full_path):
+                    continue
+
+                last_mod = datetime.strptime(time.ctime(os.path.getmtime(full_path)), "%a %b %d %H:%M:%S %Y")
+
+                #take the current date and subtract the file that was created getting the day difference
+                diff = (d - last_mod).days
+                if diff >= days_older_to_remove:
+                    rm(full_path)
+                elif diff >= days_older_to_compress:
+                    gzip(f, full_path)
+    else:
+        print "%s does not exist" % rootpath
+        sys.exit(' ')
+
+def gzip(f, full_path):
+    try:
+        #confirm that the current file is not already gzipped
+        if not f.endswith(".gz"):
+            #start a subprocess rather than using the gzip lib
+            if dry_run:
+                print "gzip %s" % full_path
+            else:
+                check_call(['gzip', full_path])
+    except:
+        print "error gzipping"
+
+def rm(full_path):
+    try:
+        if dry_run:
+            print "rm %s" % full_path
+        else:
+            os.remove(full_path)
+    except:
+        print "error deleting"
+
+def usage():
+    print ' -------------------------------------------------------------------------'
+    print ' Compresses files older than n days and removes files older than x days '
+    print ' '
+    print ' Typical usage: '
+    print ' compress_and_remove --path=/path/to/my/dir --compress=2 --remove=5 '
+    print ' '
+    print ' --path root path to perform work (string) '
+    print ' --compress days to compress (integer number) '
+    print ' --remove days to delete (integer number) '
+    print ' '
+    print ' --compress cannot be greater than or equal to --remove '
+    print ' -------------------------------------------------------------------------'
+    sys.exit(' ')
+
+if __name__ =='__main__':
+    main(sys.argv)
