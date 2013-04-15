@@ -14,6 +14,8 @@ def main(argv):
     rootpath=None
     days_older_to_compress=None
     days_older_to_remove=None
+
+    #creating this is global so i dont have to pass it in to gzip and rm methods
     global dry_run
 
     for o, a in opts:
