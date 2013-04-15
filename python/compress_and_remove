@@ -94,6 +94,7 @@ def usage():
     print ' --path root path to perform work (string) '
     print ' --compress days to compress (integer number) '
     print ' --remove days to delete (integer number) '
+    print ' --dry-run only prints what it will do, does not gzip or rm '
     print ' '
     print ' --compress cannot be greater than or equal to --remove '
     print ' -------------------------------------------------------------------------'
