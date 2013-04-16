@@ -2,25 +2,29 @@
 import sys, getopt, os, time
 from datetime import date, datetime
 from subprocess import check_call
+from multiprocessing import Pool
 
 dry_run=False
 def main(argv):
+    #creating this is global so i dont have to pass it in to gzip and rm methods
+    global dry_run
+
     try:
-        opts, args = getopt.getopt(argv[1:], "h:p:c:r:", ["help", "path=", "compress=", "remove=", "dry-run"])
+        opts, args = getopt.getopt(argv[1:], "h:p:c:r:w:", ["help", "path=", "compress=", "remove=", "dry-run", "workers="])
     except getopt.GetoptError:
         print "get opt error"
         usage()
 
+    workers=8
     rootpath=None
     days_older_to_compress=None
     days_older_to_remove=None
 
-    #creating this is global so i dont have to pass it in to gzip and rm methods
-    global dry_run
-
     for o, a in opts:
         if o in ("-h", "--help"):
             usage()
+        if o in ("-w", "--workers"):
+            workers = int(a)
         if o in ("-p", "--path"):
             rootpath = str(a)
         if o in ("-c", "--compress"):
@@ -42,6 +46,7 @@ def main(argv):
             print "dry run, no changes will be made"
 
         d = datetime.now()
+        pool = Pool(workers)
         #traverse dir, ignoring symlinks
         for path, dirs, files in os.walk(rootpath):
             for f in files:
@@ -56,14 +61,16 @@ def main(argv):
                 #take the current date and subtract the file that was created getting the day difference
                 diff = (d - last_mod).days
                 if diff >= days_older_to_remove:
-                    rm(full_path)
+                    pool.map(rm, (full_path,))
                 elif diff >= days_older_to_compress:
-                    gzip(f, full_path)
+                    pool.map(gzip, (PathHelper(full_path, f),))
     else:
         print "%s does not exist" % rootpath
         sys.exit(' ')
 
-def gzip(f, full_path):
+def gzip(args):
+    f = args.file_name
+    full_path = args.full_path
     try:
         #confirm that the current file is not already gzipped
         if not f.endswith(".gz"):
@@ -99,6 +106,12 @@ def usage():
     print ' --compress cannot be greater than or equal to --remove '
     print ' -------------------------------------------------------------------------'
     sys.exit(' ')
+
+class PathHelper:
+    def __init__(self, full_path=None, file_name=None):
+        self.full_path=full_path
+        self.file_name=file_name
+
 
 if __name__ =='__main__':
     main(sys.argv)
